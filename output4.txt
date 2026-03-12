@@ -1,0 +1,27 @@
+Club 2
+NULL
+Spade 8
+Heart 6
+Diamond A
+Spade 7
+Club 10
+Heart K
+Club 10
+Club 4
+Spade A
+Spade A
+Heart 6
+Club 9
+Spade K
+Spade 5
+Club 8
+Spade 7
+Club A
+Diamond J
+Club K
+Diamond K
+Heart 7
+Heart 6
+Club 2
+Diamond Q
+Club 2
