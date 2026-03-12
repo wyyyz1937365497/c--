@@ -1,0 +1,26 @@
+```
+class cards//表的主体，用类来方便的管理所有相关的变量
+{
+public:
+    card *node_add; //线性表的数据存储起始地址
+    int length = 0; //表中有效项的长度
+    int list_length = 0;//表拥有的可以操作的总长度
+    cards(int steps)//构造函数，初始化线性表，手动分配内存
+    {
+        node_add = (card *)malloc(steps * sizeof(card));
+        list_length = steps;
+    }
+    ~cards()//析构函数，释放内存
+    {
+        free(node_add);
+    }
+    card *get_item(int index)//获取指定索引的项
+    int append(const char *number, const char *type)//向表中添加一项
+    int remove(int index)//删除指定索引的项
+    int insert(int index, const char *number, const char *type)//在指定索引处插入一项
+    int pop()
+    int sort()
+    int extract(const char *suit)
+    int revert()
+};
+```
