@@ -1,163 +1,193 @@
 #include <iostream>
 #include <vector>
+#include <fstream>
 #include <sstream>
-#include <cstdlib>
+#include <algorithm>
+#include <string>
 using namespace std;
-vector<string> split(const string &str);
+
+// 文件工具类
+// 读取 txt 文件内容为 string
+static string readTxtFile(const string &filename);
+static void writeStringToFile(const string &content, const string &filename);
 struct Tree_node
 {
-    char content;
     Tree_node *l_child = nullptr;
     Tree_node *r_child = nullptr;
+    char content = '\0';
+    int percent = 0;
 };
-struct stack_node
-{
-    Tree_node *tree_Node;
-    int staute;
-};
-class Tree_stack
+class Tree
 {
 public:
-    int length = 0;
-    int stack_length = 0;
-    stack_node *stack_base;
-    stack_node *stack_head;
+    vector<Tree_node *> Tree_node_list;
+    int percent_list[256] = {};
+    ~Tree()
+    {
+        if (!Tree_node_list.empty())
+        {
+            deleteTree(Tree_node_list[0]);
+        }
+        Tree_node_list.clear();
+    }
 
-    Tree_stack(int list_length)
+    // 递归删除树的辅助函数
+    void deleteTree(Tree_node *node)
     {
-        stack_base = (stack_node *)malloc(list_length * sizeof(stack_node));
-        stack_length = list_length;
-        stack_head = stack_base;
+        if (node == nullptr)
+        {
+            return;
+        }
+        deleteTree(node->l_child);
+        deleteTree(node->r_child);
+        delete node;
     }
-    ~Tree_stack()
+    int get_min()
     {
-        free(stack_base);
-    }
-    int push(Tree_node *tree_node, int staute)
-    {
-        if (stack_length - length == 0)
+        if (Tree_node_list.empty())
         {
             return -1;
         }
-        stack_head->tree_Node = tree_node;
-        stack_head->staute = staute;
-        stack_head += 1;
-        length += 1;
-        return 0;
-    }
-    int pop()
-    {
-        if (length == 0)
-        {
-            return -1;
-        }
-        stack_head -= 1;
-        length -= 1;
-        return 0;
-    }
-    stack_node *get_top()
-    {
-        if (length == 0)
-            return nullptr;
-        return stack_head - 1;
+        auto min_it = min_element(Tree_node_list.begin(), Tree_node_list.end(),
+                                  [](Tree_node *a, Tree_node *b)
+                                  {
+                                      return a->percent < b->percent;
+                                  });
+        return distance(Tree_node_list.begin(), min_it);
     }
 };
-void post_order(Tree_node *node, string &result);
-void delete_tree(Tree_node *node);
-/**
- * 主函数，处理输入并构建二叉树，最后输出后序遍历结果
- * @return 程序执行状态
- */
+void generateCodes(Tree_node *node, string code, vector<string> &codes)
+{
+    if (!node)
+        return;
+    if (node->l_child == nullptr && node->r_child == nullptr)
+    {
+        codes[(unsigned char)node->content] = code;
+        return;
+    }
+    generateCodes(node->l_child, code + "0", codes);
+    generateCodes(node->r_child, code + "1", codes);
+}
+
 int main()
 {
-    int n = 0;       // 记录操作序列的长度
-    if (!(cin >> n)) // 读取操作序列长度，如果读取失败则退出程序
-        return 0;
-    cin.get();                // 消耗换行符
-    Tree_stack tree_stack(n); // 创建一个大小为n的栈
-
-    Tree_node *root = nullptr;      // 根节点指针
-    Tree_node *last_pop = nullptr;  // 记录最近弹出的节点
-    string input;                   // 存储输入的命令行
-    for (int i = 0; i < 2 * n; ++i) // 执行2n次操作（每个节点需要一次push和一次pop）
+    Tree tree;
+    string content;
+    cout << "请输入文件路径" << endl;
+    try
     {
-        if (!getline(cin, input)) // 读取一行输入
+        // 读取 txt 文件到 string
+        content = readTxtFile("input.txt");
+    }
+    catch (const exception &e)
+    {
+        cerr << "错误：" << e.what() << endl;
+        return 1;
+    }
+    for (unsigned char x : content)
+    {
+        tree.percent_list[x]++;
+    }
+    for (int i = 0; i < 256; i++)
+    {
+        if (tree.percent_list[i] != 0)
+        {
+            Tree_node *node_p = new Tree_node;
+            node_p->content = (char)i;
+            node_p->percent = tree.percent_list[i];
+            tree.Tree_node_list.push_back(node_p);
+        }
+    }
+    cout << "初始节点数量：" << tree.Tree_node_list.size() << endl;
+    while (tree.Tree_node_list.size() > 1)
+    {
+        int min1_idx = tree.get_min();
+        if (min1_idx == -1)
+        {
+            cerr << "错误：无法获取最小节点" << endl;
             break;
-        vector<string> command_list = split(input); // 分割命令行
-        // 处理push命令
-        if (command_list[0] == "push")
-        {
-            char val = (command_list[1])[0];   // 获取要插入的节点值
-            Tree_node *node = new Tree_node(); // 创建新节点
-            node->content = val;               // 设置节点值
-            // 处理根节点情况
-            if (tree_stack.length == 0)
-            {
-                if (last_pop == nullptr) // 栈为空且没有最近弹出的节点，则为根节点
-                {
-                    root = node;
-                }
-                else // 栈为空但有最近弹出的节点，则作为右孩子
-                {
-                    last_pop->r_child = node;
-                    last_pop = nullptr;
-                }
-            }
-            else // 栈不为空的情况
-            {
-                Tree_node *parent = tree_stack.get_top()->tree_Node; // 获取栈顶节点的父节点
-                if (last_pop != nullptr)                             // 有最近弹出的节点，则作为右孩子
-                {
-                    last_pop->r_child = node;
-                    last_pop = nullptr;
-                }
-                else // 没有最近弹出的节点，则作为左孩子
-                {
-                    parent->l_child = node;
-                }
-            }
-            tree_stack.push(node, 0); // 将新节点压入栈
         }
-        // 处理pop命令
-        else if (command_list[0] == "pop")
+        Tree_node *min1 = tree.Tree_node_list[min1_idx];
+        tree.Tree_node_list.erase(tree.Tree_node_list.begin() + min1_idx);
+        int min2_idx = tree.get_min();
+        if (min2_idx == -1)
         {
-            stack_node *top = tree_stack.get_top(); // 获取栈顶元素
-            if (top != nullptr)
-            {
-                last_pop = top->tree_Node; // 记录最近弹出的节点
-                tree_stack.pop();          // 弹出栈顶元素
-            }
+            cerr << "错误：无法获取第二个最小节点" << endl;
+            delete min1;
+            break;
         }
+        Tree_node *min2 = tree.Tree_node_list[min2_idx];
+        tree.Tree_node_list.erase(tree.Tree_node_list.begin() + min2_idx);
+        Tree_node *parent = new Tree_node;
+        parent->l_child = min1;
+        parent->r_child = min2;
+        parent->percent = min1->percent + min2->percent;
+        parent->content = '\0';
+        tree.Tree_node_list.push_back(parent);
+        cout << "合并节点，新节点权值：" << parent->percent
+             << ", 剩余节点数：" << tree.Tree_node_list.size() << endl;
     }
-    string result = "";       // 存储后序遍历结果
-    post_order(root, result); // 执行后序遍历
-    cout << result << endl;   // 输出结果
-    delete_tree(root);        // 释放树内存
-}
-void post_order(Tree_node *node, string &result)
-{
-    if (node == nullptr)
-        return;
-    post_order(node->l_child, result);
-    post_order(node->r_child, result);
-    result += node->content;
-}
-void delete_tree(Tree_node *node)
-{
-    if (node == nullptr)
-        return;
-    delete_tree(node->l_child);
-    delete_tree(node->r_child);
-    delete node;
-}
-vector<string> split(const string &str)
-{
-    vector<string> result;
-    istringstream iss(str);
-    string word;
-    while (iss >> word)
+    Tree_node *root = nullptr;
+    if (!tree.Tree_node_list.empty())
     {
-        result.push_back(word);
+        root = tree.Tree_node_list[0];
+        cout << "\n✅ 哈夫曼树构建完成！" << endl;
+        cout << "根节点权值：" << root->percent << endl;
+        vector<string> codes(256, "");
+        generateCodes(root, "", codes);
+        cout << "\n部分字符的哈夫曼编码：" << endl;
+        int count = 0;
+        for (int i = 0; i < 256 && count < 10; i++)
+        {
+            if (!codes[i].empty())
+            {
+                char c = (char)i;
+                if (c >= 32 && c <= 126)
+                {
+                    cout << "'" << c << "': " << codes[i] << endl;
+                }
+                else
+                {
+                    cout << "ASCII(" << i << "): " << codes[i] << endl;
+                }
+                count++;
+            }
+        }
     }
-    return result;
+    else
+    {
+        cerr << "错误：未能构建哈夫曼树" << endl;
+        return 1;
+    }
+    cout << "\n按回车键退出..." << endl;
+    cin.get();
+    return 0;
+}
+
+static string readTxtFile(const string &filename)
+{
+    ifstream file(filename);
+    if (!file.is_open())
+    {
+        throw runtime_error("无法打开文件：" + filename);
+    }
+
+    stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+
+    return buffer.str();
+}
+
+// 将 string 保存到指定文件名的 txt 文件
+static void writeStringToFile(const string &content, const string &filename)
+{
+    ofstream file(filename);
+    if (!file.is_open())
+    {
+        throw runtime_error("无法创建文件：" + filename);
+    }
+
+    file << content;
+    file.close();
 }
