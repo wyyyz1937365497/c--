@@ -1,156 +1,59 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-#include <cstdlib>
-using namespace std;
-vector<string> split(const string &str);
-struct Tree_node
-{
-    char content;
-    Tree_node *l_child = nullptr;
-    Tree_node *r_child = nullptr;
-};
-struct stack_node
-{
-    Tree_node *tree_Node;
-    int staute;
-};
-class Tree_stack
-{
-public:
-    int length = 0;
-    int stack_length = 0;
-    stack_node *stack_base;
-    stack_node *stack_head;
+#include <algorithm>
 
-    Tree_stack(int list_length)
-    {
-        stack_base = (stack_node *)malloc(list_length * sizeof(stack_node));
-        stack_length = list_length;
-        stack_head = stack_base;
-    }
-    ~Tree_stack()
-    {
-        free(stack_base);
-    }
-    int push(Tree_node *tree_node, int staute)
-    {
-        if (stack_length - length == 0)
-        {
-            return -1;
-        }
-        stack_head->tree_Node = tree_node;
-        stack_head->staute = staute;
-        stack_head += 1;
-        length += 1;
-        return 0;
-    }
-    int pop()
-    {
-        if (length == 0)
-        {
-            return -1;
-        }
-        stack_head -= 1;
-        length -= 1;
-        return 0;
-    }
-    stack_node *get_top()
-    {
-        if (length == 0)
-            return nullptr;
-        return stack_head - 1;
-    }
-};
-void post_order(Tree_node *node, string &result);
-void delete_tree(Tree_node *node);
+using namespace std;
+vector<int> split(const string &str);
 int main()
 {
-    int n = 0;
-    if (!(cin >> n))
-        return 0;
+    int num_length, query_length;
+    cin >> num_length >> query_length;
     cin.get();
-    Tree_stack tree_stack(n);
-
-    Tree_node *root = nullptr;
-    Tree_node *last_pop = nullptr;
+    vector<int> num_list;
+    vector<int> query_list;
+    vector<int> answer;
+    num_list.resize(num_length);
+    query_list.resize(query_length);
+    answer.resize(query_length);
     string input;
-    for (int i = 0; i < 2 * n; ++i)
+    getline(cin, input);
+    num_list = split(input);
+    getline(cin, input);
+    query_list = split(input);
+    sort(num_list.begin(), num_list.end());
+    for (int i = 0; i < query_length; i++)
     {
-        if (!getline(cin, input))
-            break;
-        vector<string> command_list = split(input);
-        if (command_list[0] == "push")
+        int destanse = query_list[i];
+        int length = 0;
+        for (int j = 0; j < num_length; j++)
         {
-            char val = command_list[1][0];
-            Tree_node *node = new Tree_node();
-            node->content = val;
-            if (tree_stack.length == 0)
+            if (num_list[j] <= destanse)
             {
-                if (last_pop == nullptr)
-                {
-                    root = node;
-                }
-                else
-                {
-                    last_pop->r_child = node;
-                    last_pop = nullptr;
-                }
+                length++;
+                destanse = destanse - num_list[j];
             }
             else
             {
-                Tree_node *parent = tree_stack.get_top()->tree_Node;
-                if (last_pop != nullptr)
-                {
-                    last_pop->r_child = node;
-                    last_pop = nullptr;
-                }
-                else
-                {
-                    parent->l_child = node;
-                }
-            }
-            tree_stack.push(node, 0);
-        }
-        else if (command_list[0] == "pop")
-        {
-            stack_node *top = tree_stack.get_top();
-            if (top != nullptr)
-            {
-                last_pop = top->tree_Node;
-                tree_stack.pop();
+                break;
             }
         }
+        answer[i] = length;
     }
-    string result = "";
-    post_order(root, result);
-    cout << result << endl;
-    delete_tree(root);
+    for (int x : answer)
+    {
+        cout << x << " ";
+    }
+    cout << endl;
 }
-void post_order(Tree_node *node, string &result)
+vector<int> split(const string &str)
 {
-    if (node == nullptr)
-        return;
-    post_order(node->l_child, result);
-    post_order(node->r_child, result);
-    result += node->content;
-}
-void delete_tree(Tree_node *node)
-{
-    if (node == nullptr)
-        return;
-    delete_tree(node->l_child);
-    delete_tree(node->r_child);
-    delete node;
-}
-vector<string> split(const string &str)
-{
-    vector<string> result;
+    vector<int> result;
     istringstream iss(str);
     string word;
     while (iss >> word)
     {
-        result.push_back(word);
+        result.push_back(stoi(word));
     }
     return result;
 }

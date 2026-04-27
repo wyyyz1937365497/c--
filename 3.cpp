@@ -1,460 +1,175 @@
 #include <iostream>
 #include <vector>
-#include <fstream>
-#include <sstream>
 #include <algorithm>
 #include <string>
-#include <iomanip>
+#include <sstream>
+#include <map>
+
 using namespace std;
 
-// ==================== 数据结构定义 ====================
-
-// 哈夫曼树节点结构
-struct Tree_node
+struct People_node
 {
-    Tree_node *l_child = nullptr; // 左孩子指针
-    Tree_node *r_child = nullptr; // 右孩子指针
-    char content = '\0';          // 节点表示的字符（叶节点有效）
-    int percent = 0;              // 权值（频率）
+    string name;
+    People_node *parent = nullptr;
+    map<string, People_node *> children_list;
 };
 
-// 哈夫曼树类
-class Tree
+class Family
 {
 public:
-    vector<Tree_node *> Tree_node_list; // 节点列表
-    int percent_list[256] = {};         // 统计每个字符的频率
+    People_node *root;
+    map<string, People_node *> people_node_list;
 
-    ~Tree()
+    Family(string name)
     {
-        if (!Tree_node_list.empty())
-        {
-            deleteTree(Tree_node_list[0]);
-        }
-        Tree_node_list.clear();
+        root = new People_node;
+        root->name = name;
+        people_node_list.emplace(name, root);
     }
 
-    // 递归删除树的辅助函数
-    void deleteTree(Tree_node *node)
+    ~Family()
     {
-        if (node == nullptr)
+        for (const auto &pair : people_node_list)
         {
+            delete pair.second;
+        }
+    }
+
+    // 修复：改为 void，避免无返回值警告
+    void add_child(string parent_name, string child_name)
+    {
+        auto it = people_node_list.find(parent_name);
+        if (it == people_node_list.end())
             return;
-        }
-        deleteTree(node->l_child);
-        deleteTree(node->r_child);
-        delete node;
+        People_node *parent_node = it->second;
+        People_node *child_node = new People_node;
+        child_node->name = child_name;
+        child_node->parent = parent_node;
+        parent_node->children_list.emplace(child_name, child_node);
+        people_node_list.emplace(child_name, child_node);
     }
 
-    // 获取最小权值节点的索引
-    int get_min()
+    bool is_child(string child_name, string parent_name)
     {
-        if (Tree_node_list.empty())
+        auto it = people_node_list.find(child_name);
+        if (it == people_node_list.end())
+            return false;
+        return it->second->parent != nullptr && it->second->parent->name == parent_name;
+    }
+
+    bool is_parent(string parent_name, string child_name)
+    {
+        return is_child(child_name, parent_name);
+    }
+
+    bool is_sibling(string name1, string name2)
+    {
+        auto it1 = people_node_list.find(name1);
+        auto it2 = people_node_list.find(name2);
+        if (it1 == people_node_list.end() || it2 == people_node_list.end())
+            return false;
+        return it1->second->parent == it2->second->parent;
+    }
+
+    bool is_ancestor(string anc_name, string desc_name)
+    {
+        if (anc_name == desc_name)
+            return true;
+        auto it = people_node_list.find(desc_name);
+        if (it == people_node_list.end())
+            return false;
+        People_node *curr = it->second;
+        while (curr->parent != nullptr)
         {
-            return -1;
+            curr = curr->parent;
+            if (curr->name == anc_name)
+                return true;
         }
-        auto min_it = min_element(Tree_node_list.begin(), Tree_node_list.end(),
-                                  [](Tree_node *a, Tree_node *b)
-                                  {
-                                      return a->percent < b->percent;
-                                  });
-        return distance(Tree_node_list.begin(), min_it);
+        return false;
+    }
+
+    bool is_descendant(string desc_name, string anc_name)
+    {
+        return is_ancestor(anc_name, desc_name);
     }
 };
 
-// ==================== 工具函数声明 ====================
-
-static string readTxtFile(const string &filename);
-static void writeStringToFile(const string &content, const string &filename);
-void generateCodes(Tree_node *node, string code, vector<string> &codes);
-string compressFile(const string &content, Tree_node *root, const vector<string> &codes);
-string decompressFile(const string &compressed, Tree_node *root);
-void writeCompressedFile(const string &compressed, const string &filename);
-string readCompressedFile(const string &filename);
-void displayHuffmanCodes(const vector<string> &codes);
-void showMenu();
-
-// ==================== 哈夫曼编码相关函数 ====================
-
-// 生成哈夫曼编码（递归）
-void generateCodes(Tree_node *node, string code, vector<string> &codes)
+int count_leading_spaces(const string &str)
 {
-    if (!node)
-        return;
-
-    // 叶节点：记录编码
-    if (node->l_child == nullptr && node->r_child == nullptr)
-    {
-        codes[(unsigned char)node->content] = code;
-        return;
-    }
-
-    // 递归遍历左右子树
-    generateCodes(node->l_child, code + "0", codes);
-    generateCodes(node->r_child, code + "1", codes);
-}
-
-// 使用哈夫曼编码压缩文件
-string compressFile(const string &content, Tree_node *root, const vector<string> &codes)
-{
-    string compressed = "";
-    for (char c : content)
-    {
-        compressed += codes[(unsigned char)c];
-    }
-    return compressed;
-}
-
-// 使用哈夫曼树解码二进制字符串
-string decompressFile(const string &compressed, Tree_node *root)
-{
-    string result = "";
-    Tree_node *current = root;
-
-    for (char bit : compressed)
-    {
-        if (bit == '0')
-        {
-            current = current->l_child;
-        }
-        else if (bit == '1')
-        {
-            current = current->r_child;
-        }
-
-        // 到达叶节点，记录字符并回到根节点
-        if (current->l_child == nullptr && current->r_child == nullptr)
-        {
-            result += current->content;
-            current = root;
-        }
-    }
-
-    return result;
-}
-
-// ==================== 文件操作函数 ====================
-
-// 读取 txt 文件到 string
-static string readTxtFile(const string &filename)
-{
-    ifstream file(filename);
-    if (!file.is_open())
-    {
-        throw runtime_error("无法打开文件：" + filename);
-    }
-
-    stringstream buffer;
-    buffer << file.rdbuf();
-    file.close();
-
-    return buffer.str();
-}
-
-// 将 string 保存到指定文件名的 txt 文件
-static void writeStringToFile(const string &content, const string &filename)
-{
-    ofstream file(filename);
-    if (!file.is_open())
-    {
-        throw runtime_error("无法创建文件：" + filename);
-    }
-
-    file << content;
-    file.close();
-}
-
-// 将二进制字符串保存为文件
-void writeCompressedFile(const string &compressed, const string &filename)
-{
-    ofstream file(filename);
-    if (!file.is_open())
-    {
-        throw runtime_error("无法创建压缩文件：" + filename);
-    }
-    file << compressed;
-    file.close();
-}
-
-// 读取压缩文件
-string readCompressedFile(const string &filename)
-{
-    ifstream file(filename);
-    if (!file.is_open())
-    {
-        throw runtime_error("无法打开压缩文件：" + filename);
-    }
-
-    stringstream buffer;
-    buffer << file.rdbuf();
-    file.close();
-
-    return buffer.str();
-}
-
-// ==================== 显示函数 ====================
-
-// 显示哈夫曼编码表
-void displayHuffmanCodes(const vector<string> &codes)
-{
-    cout << "\n========== 哈夫曼编码表 ==========" << endl;
     int count = 0;
-    for (int i = 0; i < 256; i++)
+    for (char c : str)
     {
-        if (!codes[i].empty())
-        {
-            char c = (char)i;
-            if (c >= 32 && c <= 126)
-            {
-                cout << "'" << c << "' -> " << setw(20) << codes[i] << "    ";
-            }
-            else
-            {
-                cout << "ASCII(" << setw(3) << i << ") -> " << setw(20) << codes[i] << "    ";
-            }
+        if (c == ' ')
             count++;
-            if (count % 4 == 0)
-                cout << endl;
-        }
+        else
+            break;
     }
-    cout << endl;
+    return count;
 }
-
-// 显示菜单
-void showMenu()
-{
-    cout << "\n========================================" << endl;
-    cout << "     哈夫曼编码与译码系统" << endl;
-    cout << "========================================" << endl;
-    cout << "  1. 压缩文件 (编码)" << endl;
-    cout << "  2. 解压文件 (译码)" << endl;
-    cout << "  3. 显示哈夫曼编码表" << endl;
-    cout << "  4. 退出程序" << endl;
-    cout << "========================================" << endl;
-    cout << "请选择操作 (1-4): ";
-}
-
-// ==================== 主函数 ====================
 
 int main()
 {
-    Tree tree;
-    string content;
-    string inputFilename, compressedFilename, decompressedFilename;
-
-    cout << "========================================" << endl;
-    cout << "     欢迎使用哈夫曼编码与译码系统" << endl;
-    cout << "========================================" << endl;
-
-    // 获取输入文件路径
-    cout << "\n请输入待处理的文本文件路径 (默认：input.txt): ";
-    getline(cin, inputFilename);
-    if (inputFilename.empty())
+    int n, m;
+    while (cin >> n >> m && (n != 0 || m != 0))
     {
-        inputFilename = "input.txt";
-    }
+        string dummy;
+        getline(cin, dummy);
 
-    try
-    {
-        // 读取 txt 文件到 string
-        content = readTxtFile(inputFilename);
-        cout << "✓ 成功读取文件：" << inputFilename << endl;
-        cout << "  文件大小：" << content.length() << " 字节" << endl;
-    }
-    catch (const exception &e)
-    {
-        cerr << "错误：" << e.what() << endl;
-        cout << "\n按回车键退出..." << endl;
-        cin.get();
-        return 1;
-    }
-
-    // 统计字符频率
-    for (unsigned char x : content)
-    {
-        tree.percent_list[x]++;
-    }
-
-    // 创建初始节点
-    for (int i = 0; i < 256; i++)
-    {
-        if (tree.percent_list[i] != 0)
+        Family *family = nullptr;
+        vector<string> parent_stack;
+        for (int i = 0; i < n; ++i)
         {
-            Tree_node *node_p = new Tree_node;
-            node_p->content = (char)i;
-            node_p->percent = tree.percent_list[i];
-            tree.Tree_node_list.push_back(node_p);
-        }
-    }
+            string line;
+            getline(cin, line);
+            int spaces = count_leading_spaces(line);
+            string name = line.substr(spaces);
 
-    cout << "\n统计信息：" << endl;
-    cout << "  不同字符数量：" << tree.Tree_node_list.size() << endl;
-
-    // 构建哈夫曼树
-    while (tree.Tree_node_list.size() > 1)
-    {
-        int min1_idx = tree.get_min();
-        if (min1_idx == -1)
-        {
-            cerr << "错误：无法获取最小节点" << endl;
-            break;
-        }
-        Tree_node *min1 = tree.Tree_node_list[min1_idx];
-        tree.Tree_node_list.erase(tree.Tree_node_list.begin() + min1_idx);
-
-        int min2_idx = tree.get_min();
-        if (min2_idx == -1)
-        {
-            cerr << "错误：无法获取第二个最小节点" << endl;
-            delete min1;
-            break;
-        }
-        Tree_node *min2 = tree.Tree_node_list[min2_idx];
-        tree.Tree_node_list.erase(tree.Tree_node_list.begin() + min2_idx);
-
-        // 创建父节点
-        Tree_node *parent = new Tree_node;
-        parent->l_child = min1;
-        parent->r_child = min2;
-        parent->percent = min1->percent + min2->percent;
-        parent->content = '\0';
-        tree.Tree_node_list.push_back(parent);
-    }
-
-    // 获取根节点
-    Tree_node *root = nullptr;
-    if (!tree.Tree_node_list.empty())
-    {
-        root = tree.Tree_node_list[0];
-        cout << "\n✅ 哈夫曼树构建完成！" << endl;
-        cout << "  根节点权值：" << root->percent << endl;
-    }
-    else
-    {
-        cerr << "错误：未能构建哈夫曼树" << endl;
-        cout << "\n按回车键退出..." << endl;
-        cin.get();
-        return 1;
-    }
-
-    // 生成哈夫曼编码
-    vector<string> codes(256, "");
-    generateCodes(root, "", codes);
-
-    // 主菜单循环
-    int choice;
-    do
-    {
-        showMenu();
-        cin >> choice;
-        cin.ignore(); // 清除换行符
-
-        switch (choice)
-        {
-        case 1: // 压缩文件
-        {
-            cout << "\n【文件压缩】" << endl;
-
-            // 压缩文件
-            string compressed = compressFile(content, root, codes);
-            cout << "  原始大小：" << content.length() << " 字节" << endl;
-            cout << "  压缩后二进制长度：" << compressed.length() << " 位" << endl;
-            cout << "  理论压缩率：" << fixed << setprecision(2)
-                 << (1.0 - compressed.length() / 8.0 / content.length()) * 100 << "%" << endl;
-
-            // 保存压缩文件
-            compressedFilename = "compressed.txt";
-            writeCompressedFile(compressed, compressedFilename);
-            cout << "  ✓ 压缩文件已保存至：" << compressedFilename << endl;
-
-            // 显示前 100 位压缩编码
-            cout << "\n  压缩编码预览 (前 100 位):" << endl;
-            cout << "  ";
-            for (size_t i = 0; i < min((size_t)100, compressed.length()); i++)
+            if (family == nullptr)
             {
-                cout << compressed[i];
-                if ((i + 1) % 10 == 0)
-                    cout << " ";
+                // 第一行必为根节点（spaces == 0）
+                family = new Family(name);
+                parent_stack.clear();
+                parent_stack.resize(1);
+                parent_stack[0] = name;
             }
-            cout << endl;
-            break;
-        }
-
-        case 2: // 解压文件
-        {
-            cout << "\n【文件解压】" << endl;
-
-            try
+            else
             {
-                // 读取压缩文件
-                if (compressedFilename.empty())
-                {
-                    compressedFilename = "compressed.txt";
-                }
-                string compressed = readCompressedFile(compressedFilename);
-                cout << "  读取压缩文件：" << compressedFilename << endl;
-                cout << "  二进制数据长度：" << compressed.length() << " 位" << endl;
-
-                // 解压文件
-                string decompressed = decompressFile(compressed, root);
-                cout << "  解压后大小：" << decompressed.length() << " 字节" << endl;
-
-                // 验证解压结果
-                if (decompressed == content)
-                {
-                    cout << "  ✅ 解压验证成功！内容与原文一致。" << endl;
-                }
-                else
-                {
-                    cout << "  ⚠️ 警告：解压内容与原文不一致！" << endl;
-                }
-
-                // 保存解压文件
-                decompressedFilename = "decompressed.txt";
-                writeStringToFile(decompressed, decompressedFilename);
-                cout << "  ✓ 解压文件已保存至：" << decompressedFilename << endl;
-
-                // 显示解压内容预览
-                cout << "\n  解压内容预览 (前 200 字符):" << endl;
-                cout << "  ";
-                for (size_t i = 0; i < min((size_t)200, decompressed.length()); i++)
-                {
-                    cout << decompressed[i];
-                }
-                if (decompressed.length() > 200)
-                {
-                    cout << "... (更多内容请查看文件)";
-                }
-                cout << endl;
+                // spaces 即为当前节点深度（0缩进=0层，1空格=1层...）
+                if ((int)parent_stack.size() <= spaces)
+                    parent_stack.resize(spaces + 1);
+                string parent_name = parent_stack[spaces - 1];
+                family->add_child(parent_name, name);
+                parent_stack[spaces] = name; // 更新该层级的最新节点，供后续同层/子层使用
             }
-            catch (const exception &e)
-            {
-                cerr << "  错误：" << e.what() << endl;
-            }
-            break;
         }
 
-        case 3: // 显示哈夫曼编码表
+        // 2. 处理查询语句
+        for (int i = 0; i < m; ++i)
         {
-            displayHuffmanCodes(codes);
-            break;
+            string u, w1, w2, rel, w4, v_dot;
+            cin >> u >> w1 >> w2 >> rel >> w4 >> v_dot;
+            string v = v_dot;
+            if (!v.empty() && v.back() == '.')
+                v.pop_back(); // 去除末尾句号
+
+            bool result = false;
+            if (rel == "child")
+                result = family->is_child(u, v);
+            else if (rel == "parent")
+                result = family->is_parent(u, v);
+            else if (rel == "sibling")
+                result = family->is_sibling(u, v);
+            else if (rel == "descendant")
+                result = family->is_descendant(u, v);
+            else if (rel == "ancestor")
+                result = family->is_ancestor(u, v);
+
+            cout << (result ? "True" : "False") << endl;
         }
 
-        case 4: // 退出
-        {
-            cout << "\n感谢使用，再见！" << endl;
-            break;
-        }
-
-        default:
-        {
-            cout << "\n⚠️ 无效选择，请输入 1-4 之间的数字" << endl;
-            break;
-        }
-        }
-    } while (choice != 4);
-
-    cout << "\n按回车键退出..." << endl;
-    cin.get();
+        // 3. 每个测试用例后输出空行
+        cout << endl;
+        delete family;
+    }
     return 0;
 }
