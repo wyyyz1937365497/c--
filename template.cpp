@@ -1,6 +1,6 @@
 /**
  * @file    template.cpp
- * @name    模板程序
+ * @name    p57模板程序
  * @date    2022-11-22
  */
 
@@ -24,19 +24,10 @@ using namespace std;
 class Solution
 {
 public:
-    std::string largestNumber(std::vector<int> &nums)
+    std::vector<int> mySort(std::vector<int> &nums)
     {
-        string output;
-        sort(nums.begin(), nums.end(), [](const int &a, const int &b)
-             { 
-         string sa = to_string(a);
-         string sb = to_string(b);
-         return sa + sb > sb + sa; });
-        for (int x : nums)
-        {
-            output += to_string(x);
-        }
-        return output;
+        sort(nums.begin(), nums.end());
+        return nums;
     }
 };
 /********************************/
@@ -53,6 +44,12 @@ int main()
         std::cin >> nums[i];
     }
     Solution s;
-    std::cout << s.largestNumber(nums) << std::endl;
+    std::vector<int> after_sort(s.mySort(nums));
+    std::cout << after_sort[0];
+    for (int i = 1; i < n; i++)
+    {
+        std::cout << ' ' << after_sort[i];
+    }
+    std::cout << std::endl;
     return 0;
 }
