@@ -1,127 +1,91 @@
 #include <iostream>
 #include <vector>
-#include <queue>
-#include <algorithm>
+#include <climits>
 using namespace std;
+
+// Prim算法求最小生成树
+int prim(int n, vector<vector<int>> &graph, const vector<pair<int, int>> &existing_edges)
+{
+    // dist[i] 表示节点i到当前生成树的最小距离
+    vector<int> dist(n, INT_MAX);
+    // visited[i] 表示节点i是否已加入生成树
+    vector<bool> visited(n, false);
+
+    // 将已存在的边的权值设为0
+    for (const auto &edge : existing_edges)
+    {
+        int u = edge.first;
+        int v = edge.second;
+        graph[u][v] = 0;
+        graph[v][u] = 0;
+    }
+
+    // 从节点0开始
+    dist[0] = 0;
+    int total_cost = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        // 找到未访问节点中距离最小的
+        int min_dist = INT_MAX;
+        int u = -1;
+        for (int j = 0; j < n; j++)
+        {
+            if (!visited[j] && dist[j] < min_dist)
+            {
+                min_dist = dist[j];
+                u = j;
+            }
+        }
+
+        // 将节点u加入生成树
+        visited[u] = true;
+        total_cost += dist[u];
+
+        // 更新与u相邻的节点的距离
+        for (int v = 0; v < n; v++)
+        {
+            if (!visited[v] && graph[u][v] < dist[v])
+            {
+                dist[v] = graph[u][v];
+            }
+        }
+    }
+
+    return total_cost;
+}
 
 int main()
 {
     int n;
     cin >> n;
 
-    vector<int> t(n);                     // 每门课程的学时
-    vector<vector<int>> prerequisites(n); // 前置课程列表
-    vector<vector<int>> adj(n);           // 邻接表：adj[i]表示课程i的后置课程
-    vector<int> in_degree(n, 0);          // 入度
-
-    // 读取输入
+    // 读取距离矩阵
+    vector<vector<int>> graph(n, vector<int>(n));
     for (int i = 0; i < n; i++)
     {
-        cin >> t[i];
-        int ci;
-        cin >> ci;
-        for (int j = 0; j < ci; j++)
+        for (int j = 0; j < n; j++)
         {
-            int pre;
-            cin >> pre;
-            pre--; // 转换为0-indexed
-            prerequisites[i].push_back(pre);
-            adj[pre].push_back(i);
-            in_degree[i]++;
+            cin >> graph[i][j];
         }
     }
 
-    // 拓扑排序计算最早完成时间
-    vector<int> earliest(n, 0); // earliest[i]表示课程i最早完成的时间
-    queue<int> q;
-    vector<int> in_deg_copy = in_degree;
-
-    // 将入度为0的课程加入队列
-    for (int i = 0; i < n; i++)
+    // 读取已存在的边
+    int m;
+    cin >> m;
+    vector<pair<int, int>> existing_edges(m);
+    for (int i = 0; i < m; i++)
     {
-        if (in_deg_copy[i] == 0)
-        {
-            q.push(i);
-            earliest[i] = t[i]; // 没有前置课程，最早完成时间就是自身学时
-        }
+        int a, b;
+        cin >> a >> b;
+        // 转换为从0开始的编号
+        existing_edges[i] = {a - 1, b - 1};
     }
 
-    vector<int> topo_order; // 拓扑序
-    while (!q.empty())
-    {
-        int u = q.front();
-        q.pop();
-        topo_order.push_back(u);
+    // 使用Prim算法计算最小生成树的总权值
+    int result = prim(n, graph, existing_edges);
 
-        for (int v : adj[u])
-        {
-            // 更新v的最早开始时间：所有前置课程中最晚完成的
-            earliest[v] = max(earliest[v], earliest[u]);
-            in_deg_copy[v]--;
-            if (in_deg_copy[v] == 0)
-            {
-                earliest[v] += t[v]; // 加上自身学时
-                q.push(v);
-            }
-        }
-    }
-
-    // 计算总的最短毕业时间
-    int total_time = 0;
-    for (int i = 0; i < n; i++)
-    {
-        total_time = max(total_time, earliest[i]);
-    }
-
-    // 计算最晚完成时间（反向拓扑排序）
-    vector<int> latest(n, total_time); // latest[i]表示课程i最晚必须完成的时间
-
-    // 计算出度
-    vector<int> out_degree(n, 0);
-    for (int i = 0; i < n; i++)
-    {
-        out_degree[i] = adj[i].size();
-    }
-
-    // 反向拓扑排序，使用队列
-    queue<int> rq;
-    vector<int> out_deg_temp = out_degree;
-
-    for (int i = 0; i < n; i++)
-    {
-        if (out_deg_temp[i] == 0)
-        {
-            rq.push(i);
-            latest[i] = total_time;
-        }
-    }
-
-    while (!rq.empty())
-    {
-        int u = rq.front();
-        rq.pop();
-
-        for (int pre : prerequisites[u])
-        {
-            // pre的最晚完成时间不能超过u的最晚开始时间
-            latest[pre] = min(latest[pre], latest[u] - t[u]);
-            out_deg_temp[pre]--;
-            if (out_deg_temp[pre] == 0)
-            {
-                rq.push(pre);
-            }
-        }
-    }
-
-    // 输出结果
-    for (int i = 0; i < n; i++)
-    {
-        // 判断是否在关键路径上
-        // 如果课程i的最早完成时间 == 最晚完成时间，则在关键路径上
-        bool on_critical_path = (earliest[i] == latest[i]);
-
-        cout << earliest[i] << " " << (on_critical_path ? 1 : 0) << endl;
-    }
+    cout << result << endl;
 
     return 0;
 }
